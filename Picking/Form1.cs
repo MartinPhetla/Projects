@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Windows.Forms;
 
 namespace Picking
@@ -14,8 +15,10 @@ namespace Picking
         private AutoCompleteStringCollection binLocationAutoCompleteCollection;
         private SqlDataAdapter binCodesAdapter;
         private AutoCompleteStringCollection itemCodesAutoCompleteCollection;
-        string connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=""C:\Users\martin\OneDrive - FHS\Desktop\IT ERROR\Picking\Picking\martin.mdf"";Integrated Security=True;Connect Timeout=30";
+        string relativePathToDatabase = @"..\..\martin.mdf";
 
+        //Set the pincode to enter befor viewing Orders
+        private string pin = "1234";
 
         public Form1()
         {
@@ -31,14 +34,16 @@ namespace Picking
             btnSend.Click -= btnSend_Click;
             btnSend.Click += btnSend_Click;
 
-            btnClear.Click += btnClear_Click;
         }
-
         private void InitializeDatabaseConnection()
         {
             //connection string
 
-            connection = new SqlConnection(connectionString);
+            string dbFilePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePathToDatabase));
+
+            string connectionString = $@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename={dbFilePath};Integrated Security=True;Connect Timeout=30";
+ 
+
 
             //Adapter and collection for itemModels
             itemModelsAdapter = new SqlDataAdapter("SELECT itemModels FROM Models", connection);
@@ -55,6 +60,10 @@ namespace Picking
 
         private void InitializeAutoComplete()
         {
+            string dbFilePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePathToDatabase));
+
+            string connectionString = $@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename={dbFilePath};Integrated Security=True;Connect Timeout=30";
+            SqlConnection connection = new SqlConnection(connectionString);
             //AutoComplete itemModels
             using (SqlCommand command = new SqlCommand("SELECT itemModels FROM Models", connection))
             {
@@ -142,7 +151,6 @@ namespace Picking
         private void btnSend_Click(object sender, EventArgs e)
         {
             InsertIntoListTable();
-            LoadDataIntoDataGridView();
             ClearFormFields();
 
 
@@ -150,6 +158,10 @@ namespace Picking
 
         private void InsertIntoListTable()
         {
+            string dbFilePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePathToDatabase));
+
+            string connectionString = $@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename={dbFilePath};Integrated Security=True;Connect Timeout=30";
+            SqlConnection connection = new SqlConnection(connectionString);
             try
             {
                 // Check if all required fields are filled in
@@ -193,94 +205,45 @@ namespace Picking
             { connection.Close(); }
         }
 
-        private void LoadDataIntoDataGridView()
+
+        private void btnView_Click(object sender, EventArgs e)
         {
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-
-                    //All columns
-                    string selectCommand = "SELECT * FROM List";
-
-                    using (SqlDataAdapter dataAdapter = new SqlDataAdapter(selectCommand, connection))
-                    {
-                        DataTable dataTable = new DataTable();
-                        dataAdapter.Fill(dataTable);
-
-                        //Bind DataTable to DataGridView
-                        dataGridView.DataSource = dataTable;
-
-                        //set the size
-                        dataGridView.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error while loading the DataGridView" + ex.Message);
-            }
-
+            ViewOrders();
         }
-
-        private void btnPicked_Click(object sender, EventArgs e)
+        private void ViewOrders()
         {
-            HighlightSelectedRow();
-        }
+            // Prompt user for PIN
+            string enteredPin = PromptForPin();
 
-        private void HighlightSelectedRow()
-        {
-            if(dataGridView.SelectedCells.Count > 0)
+            // Check if the entered PIN is correct
+            if (enteredPin == "1234")
             {
-                int SelectedRoowIndex = dataGridView.SelectedCells[0].RowIndex;
-
-                foreach(DataGridViewCell cell in dataGridView.Rows[SelectedRoowIndex].Cells)
-                {
-                    cell.Style.BackColor = System.Drawing.Color.Green;
-                    cell.Style.ForeColor = System.Drawing.Color.White;
-                }
-                MessageBox.Show("Order Completed");
+                // PIN is correct, show ViewForm
+                ViewForm viewForm = new ViewForm();
+                viewForm.Show();
             }
             else
             {
-                MessageBox.Show("Please select Complete order");
+                // Incorrect PIN, show an error message
+                MessageBox.Show("Incorrect PIN. Please try again.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
         }
 
-        private void btnClear_Click(object sender, EventArgs e)
+        private string PromptForPin()
         {
-            ClearListTable();
-            LoadDataIntoDataGridView();
-            
-        }
-        private void ClearListTable()
-        {
-            try
+            using (PinInputDialog pinInputDialog = new PinInputDialog())
             {
-                connection.Open();
+                DialogResult result = pinInputDialog.ShowDialog();
 
-                string deleteCommand = "DELETE FROM List";
-
-                using (SqlCommand cmd = new SqlCommand(deleteCommand, connection))
+                if (result == DialogResult.OK)
                 {
-                    // Execute the DELETE query
-                    cmd.ExecuteNonQuery();
-
-                    MessageBox.Show("All records in the 'List' table have been deleted.");
+                    return pinInputDialog.EnteredPin;
                 }
-            }
-            catch(Exception ex)
-            {
-                MessageBox.Show("Error while clearing." + ex.Message);
-
-            }
-            finally
-            {
-                connection.Close();
+                return string.Empty; // User canceled
             }
         }
+
+
 
         private void ClearFormFields()
         {
@@ -294,6 +257,7 @@ namespace Picking
             // Set focus to the first textbox for convenience
             txtCode.Focus();
         }
+
 
     }
 
